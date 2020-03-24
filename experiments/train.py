@@ -1,4 +1,7 @@
 import argparse
+import os
+from pathlib import Path
+
 import numpy as np
 import tensorflow as tf
 import time
@@ -24,16 +27,15 @@ def parse_args():
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
     parser.add_argument("--exp-name", type=str, default=None, help="name of the experiment")
-    parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
+    parser.add_argument("--save-dir", type=str, default="./out/", help="directory in which training state and model should be saved")
     parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
     # Evaluation
-    parser.add_argument("--restore", action="store_true", default=False)
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
-    parser.add_argument("--benchmark-dir", type=str, default="./benchmark_files/", help="directory where benchmark data is saved")
-    parser.add_argument("--plots-dir", type=str, default="./learning_curves/", help="directory where plot data is saved")
+    parser.add_argument("--benchmark-dir", type=str, default="./out/benchmark_files/", help="directory where benchmark data is saved")
+    parser.add_argument("--plots-dir", type=str, default="./out/learning_curves/", help="directory where plot data is saved")
     return parser.parse_args()
 
 def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
@@ -88,12 +90,19 @@ def train(arglist):
         # Initialize
         U.initialize()
 
+        if arglist.exp_name == None:
+            arglist.exp_name = arglist.scenario
+        save_dir = arglist.save_dir + arglist.exp_name + '/'
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
         # Load previous results, if necessary
         if arglist.load_dir == "":
-            arglist.load_dir = arglist.save_dir
-        if arglist.display or arglist.restore or arglist.benchmark:
+            arglist.load_dir = save_dir
+        if arglist.display or arglist.benchmark:
             print('Loading previous state...')
-            U.load_state(arglist.load_dir)
+            try:
+                U.load_state(arglist.load_dir)
+            except:
+                print("can not load")
 
         episode_rewards = [0.0]  # sum of rewards for all agents
         agent_rewards = [[0.0] for _ in range(env.n)]  # individual agent reward
@@ -151,6 +160,9 @@ def train(arglist):
             if arglist.display:
                 time.sleep(0.1)
                 env.render()
+                if done or terminal:
+                    print("train step: {}, episode reward: {}, time: {}".format(
+                        train_step, np.mean(episode_rewards[-25:]), round(time.time()-t_start, 3)))
                 continue
 
             # update all trainers, if not in display or benchmark mode
@@ -162,7 +174,7 @@ def train(arglist):
 
             # save model, display training output
             if terminal and (len(episode_rewards) % arglist.save_rate == 0):
-                U.save_state(arglist.save_dir, saver=saver)
+                U.save_state(save_dir, saver=saver)
                 # print statement depends on whether or not there are adversaries
                 if num_adversaries == 0:
                     print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
