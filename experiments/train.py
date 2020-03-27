@@ -57,9 +57,11 @@ def make_env(scenario_name, arglist, benchmark=False):
     world = scenario.make_world()
     # create multiagent environment
     if benchmark:
-        env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation, scenario.benchmark_data)
+        env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation, \
+                               info_callback=scenario.benchmark_data, done_callback=scenario.done)
     else:
-        env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation)
+        env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation, \
+                               done_callback=scenario.done)
     return env
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
