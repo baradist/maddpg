@@ -1,28 +1,28 @@
 import argparse
-import os
+import pickle
+import time
 from pathlib import Path
 
+import maddpg.common.tf_util as U
+import multiagent.scenarios as scenarios
 import numpy as np
 import tensorflow as tf
-import time
-import pickle
-
-import maddpg.common.tf_util as U
-from maddpg.trainer.maddpg import MADDPGAgentTrainer
 import tensorflow.contrib.layers as layers
+from maddpg.trainer.maddpg import MADDPGAgentTrainer
+
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
     # Environment
     parser.add_argument("--scenario", type=str, default="football", help="name of the scenario script")
-    parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
-    parser.add_argument("--num-episodes", type=int, default=60000, help="number of episodes")
+    parser.add_argument("--max-episode-len", type=int, default=300, help="maximum episode length")
+    parser.add_argument("--num-episodes", type=int, default=200_000, help="number of episodes")
     parser.add_argument("--num-adversaries", type=int, default=0, help="number of adversaries")
     parser.add_argument("--good-policy", type=str, default="maddpg", help="policy for good agents")
     parser.add_argument("--adv-policy", type=str, default="maddpg", help="policy of adversaries")
     # Core training parameters
     parser.add_argument("--lr", type=float, default=1e-2, help="learning rate for Adam optimizer")
-    parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
+    parser.add_argument("--gamma", type=float, default=0.98, help="discount factor")
     parser.add_argument("--batch-size", type=int, default=1024, help="number of episodes to optimize at the same time")
     parser.add_argument("--num-units", type=int, default=64, help="number of units in the mlp")
     # Checkpointing
@@ -48,8 +48,6 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 def make_env(scenario_name, benchmark=False):
-    import multiagent.scenarios as scenarios
-
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
     # create world
@@ -76,7 +74,6 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
             "agent_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
             local_q_func=(arglist.good_policy=='ddpg')))
     return trainers
-
 
 def process(arglist):
     if arglist.exp_name == None:
@@ -159,7 +156,7 @@ def train(arglist):
             if terminal and (episodes_count % arglist.save_rate == 0):
                 U.save_state(arglist.load_dir, saver=saver) # TODO
                 mean_episode_reward = np.mean(episode_rewards)
-                episode_rewards.clear()
+                episode_rewards = [0.0]
                 # print statement depends on whether or not there are adversaries
                 if num_adversaries == 0:
                     print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
