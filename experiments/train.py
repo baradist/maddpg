@@ -1,15 +1,15 @@
 import argparse
-import os
+import pickle
+import time
 from pathlib import Path
 
+import maddpg.common.tf_util as U
+import multiagent.scenarios as scenarios
 import numpy as np
 import tensorflow as tf
-import time
-import pickle
-
-import maddpg.common.tf_util as U
-from maddpg.trainer.maddpg import MADDPGAgentTrainer
 import tensorflow.contrib.layers as layers
+from maddpg.trainer.maddpg import MADDPGAgentTrainer
+
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
     parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
     # Evaluation
-    parser.add_argument("--display", action="store_true", default=False)
+    parser.add_argument("--display", action="store_true", default=False)  # Set True to display
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
     parser.add_argument("--benchmark-dir", type=str, default="./out/benchmark_files/", help="directory where benchmark data is saved")
@@ -48,8 +48,6 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 def make_env(scenario_name, benchmark=False):
-    import multiagent.scenarios as scenarios
-
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
     # create world
@@ -93,6 +91,7 @@ def process(arglist):
         play(arglist)
     else:
         train(arglist)
+
 
 def train(arglist):
     with U.single_threaded_session():
@@ -159,7 +158,7 @@ def train(arglist):
             if terminal and (episodes_count % arglist.save_rate == 0):
                 U.save_state(arglist.load_dir, saver=saver) # TODO
                 mean_episode_reward = np.mean(episode_rewards)
-                episode_rewards.clear()
+                episode_rewards = [0.0]
                 # print statement depends on whether or not there are adversaries
                 if num_adversaries == 0:
                     print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
@@ -185,6 +184,7 @@ def train(arglist):
                     pickle.dump(final_ep_ag_rewards, fp)
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break
+
 
 def play(arglist):
     with U.single_threaded_session():
@@ -248,6 +248,7 @@ def play(arglist):
             if done or terminal:
                 print("train step: {}, episode reward: {}, time: {}".format(
                     train_step, np.mean(episode_rewards[-1:]), round(time.time()-t_start, 3)))
+
 
 def benchmark(arglist):
     with U.single_threaded_session():
@@ -315,6 +316,7 @@ def benchmark(arglist):
                         pickle.dump(agent_info[:-1], fp)
                     break
                 continue
+
 
 if __name__ == '__main__':
     arglist = parse_args()
