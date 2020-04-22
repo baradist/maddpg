@@ -241,6 +241,8 @@ def play(arglist):
                 agent_rewards[i][-1] += rew
 
             if done or terminal:
+                print("train step: {}, episode reward: {}, time: {}".format(
+                    train_step, np.mean(episode_rewards[-1:]), round(time.time() - t_start, 3)))
                 obs_n = env.reset()
                 episode_step = 0
                 episode_rewards.append(0)
@@ -254,9 +256,6 @@ def play(arglist):
             # for displaying learned policies
             time.sleep(0.1)
             env.render()
-            if done or terminal:
-                print("train step: {}, episode reward: {}, time: {}".format(
-                    train_step, np.mean(episode_rewards[-1:]), round(time.time() - t_start, 3)))
 
 
 def benchmark(arglist):
