@@ -79,6 +79,14 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     return trainers
 
 
+def load_state(load_dir):
+    try:
+        U.load_state(load_dir)
+        print('Previous state loaded')
+    except:
+        print("can not load")
+
+
 def process(arglist):
     if arglist.exp_name == None:
         arglist.exp_name = arglist.scenario
@@ -107,6 +115,8 @@ def train(arglist):
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
         U.initialize()
+
+        load_state(arglist.load_dir)
 
         episode_rewards = [0.0]  # sum of rewards for all agents
         agent_rewards = [[0.0] for _ in range(env.n)]  # individual agent reward
@@ -202,11 +212,7 @@ def play(arglist):
         # Initialize
         U.initialize()
 
-        print('Loading previous state...')
-        try:
-            U.load_state(arglist.load_dir)
-        except:
-            print("can not load")
+        load_state(arglist.load_dir)
 
         episode_rewards = [0.0]  # sum of rewards for all agents
         agent_rewards = [[0.0] for _ in range(env.n)]  # individual agent reward
@@ -266,11 +272,7 @@ def benchmark(arglist):
         # Initialize
         U.initialize()
 
-        print('Loading previous state...')
-        try:
-            U.load_state(arglist.load_dir)
-        except:
-            print("can not load")
+        load_state(arglist.load_dir)
 
         episode_rewards = [0.0]  # sum of rewards for all agents
         agent_rewards = [[0.0] for _ in range(env.n)]  # individual agent reward
