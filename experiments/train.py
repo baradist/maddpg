@@ -9,7 +9,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 from maddpg.trainer.maddpg import MADDPGAgentTrainer
-
+import visdom
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
@@ -105,6 +105,10 @@ def process(arglist):
 
 
 def train(arglist):
+    vis = visdom.Visdom(port=8097)
+    win = None
+    param = None
+
     with U.single_threaded_session():
         # Create environment
         env = make_env(arglist.scenario)
@@ -149,6 +153,42 @@ def train(arglist):
                 agent_rewards[i][-1] += rew
 
             if done or terminal:
+                n_agents = env.n
+                i_episode = episodes_count
+                adversaries_reward = episode_rewards[-1]
+                rr = [ar[-1] for i, ar in enumerate(agent_rewards)]
+                if win is None:
+                    win = vis.line(X=np.arange(i_episode, i_episode + 1),
+                                   Y=np.array([
+                                       np.append(adversaries_reward, rr)]),
+                                   opts=dict(
+                                       ylabel='Reward',
+                                       xlabel='Episode',
+                                       title='MADDPG on MOE\n' +
+                                             'agent=%d' % n_agents +
+                                             ', sensor_range=0.2\n',
+                                       legend=['Total'] +
+                                              ['Agent-%d' % i for i in range(n_agents)]))
+                else:
+                    vis.line(X=np.array(
+                        [np.array(episodes_count).repeat(n_agents + 1)]),
+                        Y=np.array([np.append(adversaries_reward, rr)]),
+                        win=win,
+                        update='append')
+                # if param is None:
+                #     param = vis.line(X=np.arange(i_episode, i_episode + 1),
+                #                      Y=np.array([maddpg.var[0]]),
+                #                      opts=dict(
+                #                          ylabel='Var',
+                #                          xlabel='Episode',
+                #                          title='MADDPG on MPE: Exploration',
+                #                          legend=['Variance']))
+                # else:
+                #     vis.line(X=np.array([i_episode]),
+                #              Y=np.array([maddpg.var[0]]),
+                #              win=param,
+                #              update='append')
+
                 obs_n = env.reset()
                 episode_step = 0
                 episode_rewards.append(0)
