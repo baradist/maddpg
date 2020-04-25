@@ -8,8 +8,9 @@ import multiagent.scenarios as scenarios
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
-from maddpg.trainer.maddpg import MADDPGAgentTrainer
 import visdom
+from maddpg.trainer.maddpg import MADDPGAgentTrainer
+
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
@@ -180,41 +181,17 @@ def train(arglist):
                 agent_rewards[i][-1] += rew
 
             if done or terminal:
-                n_agents = env.n
-                i_episode = episodes_count
-                adversaries_reward = episode_rewards[-1]
-                rr = [ar[-1] for i, ar in enumerate(agent_rewards)]
-                if win is None:
-                    win = vis.line(X=np.arange(i_episode, i_episode + 1),
-                                   Y=np.array([
-                                       np.append(adversaries_reward, rr)]),
-                                   opts=dict(
-                                       ylabel='Reward',
-                                       xlabel='Episode',
-                                       title='MADDPG\n' +
-                                             'agent=%d' % n_agents,
-                                       legend=['Total'] +
-                                              ['Agent-%d' % i for i in range(n_agents)]))
-                else:
-                    vis.line(X=np.array(
-                        [np.array(episodes_count).repeat(n_agents + 1)]),
-                        Y=np.array([np.append(adversaries_reward, rr)]),
-                        win=win,
-                        update='append')
-                if param is None:
-                    param = vis.line(X=np.arange(i_episode, i_episode + 1),
-                                     Y=np.array([
-                                         communications_matches / communications_matches_count]),
-                                     opts=dict(
-                                         ylabel='Var',
-                                         xlabel='Episode',
-                                         title='Consistency of communication',
-                                         legend=['Agent-%d' % i for i in range(n_agents)]))
-                else:
-                    vis.line(X=np.array([i_episode]),
-                             Y=np.array([communications_matches / communications_matches_count]),
-                             win=param,
-                             update='append')
+                episodes_count += 1
+                plot_rate = 10
+                if episodes_count % plot_rate == 0:
+                    mean_agents_reward = np.mean(episode_rewards[-plot_rate])
+                    mean_reward_by_agent = [ar[-plot_rate] for i, ar in enumerate(agent_rewards)]
+                    win = plot_rewards(vis, win, env.n, episodes_count, mean_agents_reward, mean_reward_by_agent)
+                    param = plot_communication_consistency(vis, param, communications_matches,
+                                                           communications_matches_count,
+                                                           env.n, episodes_count)
+                    communications_matches = np.zeros(env.n)
+                    communications_matches_count = 0
 
                 obs_n = env.reset()
                 episode_step = 0
@@ -222,10 +199,7 @@ def train(arglist):
                 for a in agent_rewards:
                     a.append(0)
                 agent_info.append([[]])
-                episodes_count += 1
 
-                communications_matches = np.zeros(env.n)
-                communications_matches_count = 0
 
             # increment global step counter
             train_step += 1
@@ -267,6 +241,45 @@ def train(arglist):
                     pickle.dump(final_ep_ag_rewards, fp)
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
                 break
+
+
+def plot_communication_consistency(vis, param, communications_matches, communications_matches_count, n_agents,
+                                   i_episode):
+    if param is None:
+        param = vis.line(X=np.arange(i_episode, i_episode + 1),
+                         Y=np.array([
+                             communications_matches / communications_matches_count]),
+                         opts=dict(
+                             ylabel='Var',
+                             xlabel='Episode',
+                             title='Consistency of communication',
+                             legend=['Agent-%d' % i for i in range(n_agents)]))
+    else:
+        vis.line(X=np.array([i_episode]),
+                 Y=np.array([communications_matches / communications_matches_count]),
+                 win=param,
+                 update='append')
+    return param
+
+
+def plot_rewards(vis, win, n_agents, i_episode, adversaries_reward, mean_reward_by_agent):
+    if win is None:
+        win = vis.line(X=np.arange(i_episode, i_episode + 1),
+                       Y=np.array([np.append(adversaries_reward, mean_reward_by_agent)]),
+                       opts=dict(
+                           ylabel='Reward',
+                           xlabel='Episode',
+                           title='MADDPG\n' +
+                                 'agent=%d' % n_agents,
+                           legend=['Total'] +
+                                  ['Agent-%d' % i for i in range(n_agents)]))
+    else:
+        vis.line(X=np.array(
+            [np.array(i_episode).repeat(n_agents + 1)]),
+            Y=np.array([np.append(adversaries_reward, mean_reward_by_agent)]),
+            win=win,
+            update='append')
+    return win
 
 
 def play(arglist):
