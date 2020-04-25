@@ -104,6 +104,26 @@ def process(arglist):
         train(arglist)
 
 
+def communications_matches_f(observations, agents, communications_matches_matrix):
+    # matches_results = [0. for _ in range(len(agents))]
+    length = len(agents)
+    matches_results = np.zeros(length)
+    for i, obs, agent, matrix, matches_result in zip(range(length), observations, agents, communications_matches_matrix, matches_results):
+        if agent.silent:
+            continue
+        obs = obs[:3]
+        obs_max_index = obs.argmax()
+        comm_action = agent.action.c
+        max_comm_action = np.zeros(len(comm_action))
+        max_comm_action[comm_action.argmax()] = 1.
+        if np.all(matrix[obs_max_index] * max_comm_action == 0):
+            matrix[obs_max_index] = max_comm_action
+            matches_results[i] = .0
+        else:
+            matches_results[i] = 1
+    return matches_results
+
+
 def train(arglist):
     vis = visdom.Visdom(port=8097)
     win = None
@@ -134,12 +154,19 @@ def train(arglist):
         episodes_count = 0
         t_start = time.time()
 
+        communications_matches = np.zeros(env.n)
+        communications_matches_count = 0
+        communications_matches_matrix = np.zeros([env.n, 3, env.world.dim_c])
+
         print('Starting iterations...')
         while True:
             # get action
             action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
+            communications_matches = communications_matches \
+                                     + communications_matches_f(obs_n, env.world.agents, communications_matches_matrix)
+            communications_matches_count += 1
             episode_step += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
@@ -164,9 +191,8 @@ def train(arglist):
                                    opts=dict(
                                        ylabel='Reward',
                                        xlabel='Episode',
-                                       title='MADDPG on MOE\n' +
-                                             'agent=%d' % n_agents +
-                                             ', sensor_range=0.2\n',
+                                       title='MADDPG\n' +
+                                             'agent=%d' % n_agents,
                                        legend=['Total'] +
                                               ['Agent-%d' % i for i in range(n_agents)]))
                 else:
@@ -175,19 +201,20 @@ def train(arglist):
                         Y=np.array([np.append(adversaries_reward, rr)]),
                         win=win,
                         update='append')
-                # if param is None:
-                #     param = vis.line(X=np.arange(i_episode, i_episode + 1),
-                #                      Y=np.array([maddpg.var[0]]),
-                #                      opts=dict(
-                #                          ylabel='Var',
-                #                          xlabel='Episode',
-                #                          title='MADDPG on MPE: Exploration',
-                #                          legend=['Variance']))
-                # else:
-                #     vis.line(X=np.array([i_episode]),
-                #              Y=np.array([maddpg.var[0]]),
-                #              win=param,
-                #              update='append')
+                if param is None:
+                    param = vis.line(X=np.arange(i_episode, i_episode + 1),
+                                     Y=np.array([
+                                         communications_matches / communications_matches_count]),
+                                     opts=dict(
+                                         ylabel='Var',
+                                         xlabel='Episode',
+                                         title='Consistency of communication',
+                                         legend=['Agent-%d' % i for i in range(n_agents)]))
+                else:
+                    vis.line(X=np.array([i_episode]),
+                             Y=np.array([communications_matches / communications_matches_count]),
+                             win=param,
+                             update='append')
 
                 obs_n = env.reset()
                 episode_step = 0
@@ -196,6 +223,9 @@ def train(arglist):
                     a.append(0)
                 agent_info.append([[]])
                 episodes_count += 1
+
+                communications_matches = np.zeros(env.n)
+                communications_matches_count = 0
 
             # increment global step counter
             train_step += 1
