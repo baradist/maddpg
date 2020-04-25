@@ -158,6 +158,7 @@ def train(arglist):
         communications_matches = np.zeros(env.n)
         communications_matches_count = 0
         communications_matches_matrix = np.zeros([env.n, 3, env.world.dim_c])
+        comm_check_rate = 10
 
         print('Starting iterations...')
         while True:
@@ -165,10 +166,12 @@ def train(arglist):
             action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
-            communications_matches = communications_matches \
-                                     + communications_matches_f(obs_n, env.world.agents, communications_matches_matrix)
-            communications_matches_count += 1
             episode_step += 1
+            if episode_step % comm_check_rate == 0:
+                communications_matches = communications_matches + \
+                                         communications_matches_f(obs_n, env.world.agents,
+                                                                  communications_matches_matrix)
+                communications_matches_count += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
             # collect experience
