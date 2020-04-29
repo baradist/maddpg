@@ -109,7 +109,8 @@ def communications_matches_f(observations, agents, communications_matches_matrix
     # matches_results = [0. for _ in range(len(agents))]
     length = len(agents)
     matches_results = np.zeros(length)
-    for i, obs, agent, matrix, matches_result in zip(range(length), observations, agents, communications_matches_matrix, matches_results):
+    for i, obs, agent, matrix, matches_result \
+            in zip(range(length), observations, agents, communications_matches_matrix, matches_results):
         if agent.silent:
             continue
         obs = obs[:3]
@@ -159,6 +160,7 @@ def train(arglist):
         communications_matches_count = 0
         communications_matches_matrix = np.zeros([env.n, 3, env.world.dim_c])
         comm_check_rate = 10
+        plot_rate = 200
 
         print('Starting iterations...')
         while True:
@@ -185,7 +187,6 @@ def train(arglist):
 
             if done or terminal:
                 episodes_count += 1
-                plot_rate = 10
                 if episodes_count % plot_rate == 0:
                     mean_agents_reward = np.mean(episode_rewards[-plot_rate])
                     mean_reward_by_agent = [ar[-plot_rate] for i, ar in enumerate(agent_rewards)]
