@@ -147,6 +147,7 @@ class MADDPGAgentTrainer(AgentTrainer):
         self.replay_buffer = ReplayBuffer(1e6)
         self.max_replay_buffer_len = args.batch_size * args.max_episode_len
         self.replay_sample_index = None
+        self.num_adversaries = 0
 
     def action(self, obs):
         return self.act(obs[None])[0]
@@ -159,19 +160,20 @@ class MADDPGAgentTrainer(AgentTrainer):
         self.replay_sample_index = None
 
     def update(self, agents, t):
-        if len(self.replay_buffer) < self.max_replay_buffer_len: # replay buffer is not large enough
+        # if len(self.replay_buffer) < self.max_replay_buffer_len: # replay buffer is not large enough
+        if np.min([len(agent.replay_buffer) for agent in agents]) < self.max_replay_buffer_len:
             return
         if not t % 100 == 0:  # only update every 100 steps
             return
 
-        self.replay_sample_index = self.replay_buffer.make_index(self.args.batch_size)
+        self.replay_sample_index = self.get_trainer_by_id(agents, len(agents) - 1).replay_buffer.make_index(self.args.batch_size)
         # collect replay sample from all agents
         obs_n = []
         obs_next_n = []
         act_n = []
         index = self.replay_sample_index
         for i in range(self.n):
-            obs, act, rew, obs_next, done = agents[i].replay_buffer.sample_index(index)
+            obs, act, rew, obs_next, done = self.get_trainer_by_id(agents, i).replay_buffer.sample_index(index)
             obs_n.append(obs)
             obs_next_n.append(obs_next)
             act_n.append(act)
@@ -181,7 +183,7 @@ class MADDPGAgentTrainer(AgentTrainer):
         num_sample = 1
         target_q = 0.0
         for i in range(num_sample):
-            target_act_next_n = [agents[i].p_debug['target_act'](obs_next_n[i]) for i in range(self.n)]
+            target_act_next_n = [self.get_trainer_by_id(agents, i).p_debug['target_act'](obs_next_n[i]) for i in range(self.n)]
             target_q_next = self.q_debug['target_q_values'](*(obs_next_n + target_act_next_n))
             target_q += rew + self.args.gamma * (1.0 - done) * target_q_next
         target_q /= num_sample
@@ -194,3 +196,6 @@ class MADDPGAgentTrainer(AgentTrainer):
         self.q_update()
 
         return [q_loss, p_loss, np.mean(target_q), np.mean(rew), np.mean(target_q_next), np.std(target_q)]
+
+    def get_trainer_by_id(self, trainers, i):
+        return trainers[0] if (i < self.num_adversaries) else trainers[len(trainers) - 1]
