@@ -101,9 +101,6 @@ def communications_matches_f(observations, agents, communications_matches_matrix
 
 
 def train(arglist):
-    vis = visdom.Visdom(port=8097)
-    win = None
-    param = None
 
     with U.single_threaded_session():
         # Create environment
@@ -113,6 +110,26 @@ def train(arglist):
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
+
+        from experiments.plotter import Plotter
+        vis = visdom.Visdom(port=8097)
+        title = 'MADDPG'
+        episode = 'Episode'
+        reward_plotter = Plotter(vis,
+                                 title=title,
+                                 ylabel='Reward',
+                                 xlabel=episode,
+                                 legend=['Agent-%d' % i for i in range(env.n)])
+        time_plotter = Plotter(vis,
+                               title=title,
+                               ylabel='Time, sec',
+                               xlabel=episode,
+                               legend=['Time'], frequency=10)
+        overall_time_plotter = Plotter(vis,
+                                       title=title,
+                                       ylabel='Time from the beginning',
+                                       xlabel=episode,
+                                       legend=['Time'], frequency=1)
 
         U.initialize()
 
@@ -129,6 +146,8 @@ def train(arglist):
         train_step = 0
         episodes_count = 0
         t_start = time.time()
+        t_start_p = time.time()
+        t_start_overall = time.time()
 
         communications_matches = np.zeros(env.n)
         communications_matches_count = 0
@@ -161,15 +180,12 @@ def train(arglist):
 
             if done or terminal:
                 episodes_count += 1
-                if episodes_count % plot_rate == 0:
-                    mean_agents_reward = np.mean(episode_rewards[-plot_rate])
-                    mean_reward_by_agent = [ar[-plot_rate] for i, ar in enumerate(agent_rewards)]
-                    win = plot_rewards(vis, win, env.n, episodes_count, mean_agents_reward, mean_reward_by_agent)
-                    param = plot_communication_consistency(vis, param, communications_matches,
-                                                           communications_matches_count,
-                                                           env.n, episodes_count)
-                    communications_matches = np.zeros(env.n)
-                    communications_matches_count = 0
+                reward_plotter.log(episodes_count, rew_n)
+                if episodes_count % 10 == 0:
+                    time_plotter.log(episodes_count, [time.time() - t_start_p])
+                    t_start_p = time.time()
+                if episodes_count % 100 == 0:
+                    overall_time_plotter.log(episodes_count, [time.time() - t_start_overall])
 
                 obs_n = env.reset()
                 episode_step = 0
@@ -228,7 +244,7 @@ def plot_communication_consistency(vis, param, communications_matches, communica
                          Y=np.array([
                              communications_matches / communications_matches_count]),
                          opts=dict(
-                             ylabel='Var',
+                             ylabel='c',
                              xlabel='Episode',
                              title='Consistency of communication',
                              legend=['Agent-%d' % i for i in range(n_agents)]))
