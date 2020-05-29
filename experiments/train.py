@@ -1,15 +1,14 @@
-import argparse
 import pickle
 import time
 from pathlib import Path
 
-import maddpg.common.tf_util as U
 import multiagent.scenarios as scenarios
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
 import visdom
 
+import maddpg.common.tf_util as U
 from experiments.parse_args import parse_args
 from maddpg.trainer.maddpg import MADDPGAgentTrainer
 
@@ -101,13 +100,12 @@ def communications_matches_f(observations, agents, communications_matches_matrix
 
 
 def train(arglist):
-
     with U.single_threaded_session():
         # Create environment
         env = make_env(arglist.scenario)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
-        num_adversaries = min(env.n, arglist.num_adversaries)
+        num_adversaries = np.sum([a.adversary for a in env.agents])
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
@@ -162,11 +160,11 @@ def train(arglist):
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
             episode_step += 1
-            if episode_step % comm_check_rate == 0:
-                communications_matches = communications_matches + \
-                                         communications_matches_f(obs_n, env.world.agents,
-                                                                  communications_matches_matrix)
-                communications_matches_count += 1
+            # if episode_step % comm_check_rate == 0:
+            #     communications_matches = communications_matches + \
+            #                              communications_matches_f(obs_n, env.world.agents,
+            #                                                       communications_matches_matrix)
+            #     communications_matches_count += 1
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
             # collect experience
@@ -193,7 +191,6 @@ def train(arglist):
                 for a in agent_rewards:
                     a.append(0)
                 agent_info.append([[]])
-
 
             # increment global step counter
             train_step += 1
@@ -237,52 +234,13 @@ def train(arglist):
                 break
 
 
-def plot_communication_consistency(vis, param, communications_matches, communications_matches_count, n_agents,
-                                   i_episode):
-    if param is None:
-        param = vis.line(X=np.arange(i_episode, i_episode + 1),
-                         Y=np.array([
-                             communications_matches / communications_matches_count]),
-                         opts=dict(
-                             ylabel='c',
-                             xlabel='Episode',
-                             title='Consistency of communication',
-                             legend=['Agent-%d' % i for i in range(n_agents)]))
-    else:
-        vis.line(X=np.array([i_episode]),
-                 Y=np.array([communications_matches / communications_matches_count]),
-                 win=param,
-                 update='append')
-    return param
-
-
-def plot_rewards(vis, win, n_agents, i_episode, adversaries_reward, mean_reward_by_agent):
-    if win is None:
-        win = vis.line(X=np.arange(i_episode, i_episode + 1),
-                       Y=np.array([np.append(adversaries_reward, mean_reward_by_agent)]),
-                       opts=dict(
-                           ylabel='Reward',
-                           xlabel='Episode',
-                           title='MADDPG\n' +
-                                 'agent=%d' % n_agents,
-                           legend=['Total'] +
-                                  ['Agent-%d' % i for i in range(n_agents)]))
-    else:
-        vis.line(X=np.array(
-            [np.array(i_episode).repeat(n_agents + 1)]),
-            Y=np.array([np.append(adversaries_reward, mean_reward_by_agent)]),
-            win=win,
-            update='append')
-    return win
-
-
 def play(arglist):
     with U.single_threaded_session():
         # Create environment
         env = make_env(arglist.scenario, arglist.benchmark)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
-        num_adversaries = min(env.n, arglist.num_adversaries)
+        num_adversaries = np.sum([a.adversary for a in env.agents])
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
