@@ -78,27 +78,6 @@ def process(arglist):
         train(arglist)
 
 
-def communications_matches_f(observations, agents, communications_matches_matrix):
-    # matches_results = [0. for _ in range(len(agents))]
-    length = len(agents)
-    matches_results = np.zeros(length)
-    for i, obs, agent, matrix, matches_result \
-            in zip(range(length), observations, agents, communications_matches_matrix, matches_results):
-        if agent.silent:
-            continue
-        obs = obs[:3]
-        obs_max_index = obs.argmax()
-        comm_action = agent.action.c
-        max_comm_action = np.zeros(len(comm_action))
-        max_comm_action[comm_action.argmax()] = 1.
-        if np.all(matrix[obs_max_index] * max_comm_action == 0):
-            matrix[obs_max_index] = max_comm_action
-            matches_results[i] = .0
-        else:
-            matches_results[i] = 1
-    return matches_results
-
-
 def train(arglist):
     with U.single_threaded_session():
         # Create environment
@@ -118,6 +97,12 @@ def train(arglist):
                                  ylabel='Reward',
                                  xlabel=episode,
                                  legend=['Agent-%d' % i for i in range(env.n)])
+        comm_plotter = Plotter(vis,
+                               title=title,
+                               ylabel='Consistency',
+                               xlabel=episode,
+                               legend=['Agent-%d' % i for i in range(env.n)],
+                               frequency=10)
         time_plotter = Plotter(vis,
                                title=title,
                                ylabel='Time, sec',
@@ -147,11 +132,8 @@ def train(arglist):
         t_start_p = time.time()
         t_start_overall = time.time()
 
-        communications_matches = np.zeros(env.n)
-        communications_matches_count = 0
-        communications_matches_matrix = np.zeros([env.n, 3, env.world.dim_c])
-        comm_check_rate = 10
-        plot_rate = 200
+        from experiments.comm_checker import CommChecker
+        comm_checker = CommChecker(env.n)
 
         print('Starting iterations...')
         while True:
@@ -160,11 +142,7 @@ def train(arglist):
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
             episode_step += 1
-            # if episode_step % comm_check_rate == 0:
-            #     communications_matches = communications_matches + \
-            #                              communications_matches_f(obs_n, env.world.agents,
-            #                                                       communications_matches_matrix)
-            #     communications_matches_count += 1
+            comm_checker.check(obs_n, env.world.agents, episode_step)
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
             # collect experience
@@ -184,6 +162,7 @@ def train(arglist):
                     t_start_p = time.time()
                 if episodes_count % 100 == 0:
                     overall_time_plotter.log(episodes_count, [time.time() - t_start_overall])
+                comm_plotter.log(episodes_count, comm_checker.get_result())
 
                 obs_n = env.reset()
                 episode_step = 0
