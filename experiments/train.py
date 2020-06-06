@@ -44,7 +44,7 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     trainer = MADDPGAgentTrainer
     for i in range(num_adversaries):
         trainers.append(trainer(
-            "agent_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
+            "adversary_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
     for i in range(num_adversaries, env.n):
         trainers.append(trainer(
@@ -70,9 +70,7 @@ def process(arglist):
     if arglist.load_dir == "":
         arglist.load_dir = save_dir
 
-    if arglist.benchmark:
-        benchmark(arglist)
-    elif arglist.display:
+    if arglist.display:
         play(arglist)
     else:
         train(arglist)
@@ -174,7 +172,7 @@ def train(arglist):
             # increment global step counter
             train_step += 1
 
-            # update all trainers, if not in display or benchmark mode
+            # update all trainers, if not in display mode
             loss = None
             for agent in trainers:
                 agent.preupdate()
@@ -213,14 +211,10 @@ def train(arglist):
                 break
 
 
-def get_num_adversaries(env):
-    return np.sum([a.adversary if hasattr(a, 'adversary') else False for a in env.agents])
-
-
 def play(arglist):
     with U.single_threaded_session():
         # Create environment
-        env = make_env(arglist.scenario, arglist.benchmark)
+        env = make_env(arglist.scenario)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
         num_adversaries = get_num_adversaries(env)
@@ -276,68 +270,8 @@ def play(arglist):
             env.render()
 
 
-def benchmark(arglist):
-    with U.single_threaded_session():
-        # Create environment
-        env = make_env(arglist.scenario, arglist.benchmark)
-        # Create agent trainers
-        obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
-        num_adversaries = min(env.n, arglist.num_adversaries)
-        trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
-        print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
-
-        # Initialize
-        U.initialize()
-
-        load_state(arglist.load_dir)
-
-        episode_rewards = [0.0]  # sum of rewards for all agents
-        agent_rewards = [[0.0] for _ in range(env.n)]  # individual agent reward
-        agent_info = [[[]]]  # placeholder for benchmarking info
-        obs_n = env.reset()
-        episode_step = 0
-        train_step = 0
-
-        print('Starting iterations...')
-        while True:
-            # get action
-            action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
-            # environment step
-            new_obs_n, rew_n, done_n, info_n = env.step(action_n)
-            episode_step += 1
-            done = all(done_n)
-            terminal = (episode_step >= arglist.max_episode_len)
-            # collect experience
-            for i, agent in enumerate(trainers):
-                agent.experience(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
-            obs_n = new_obs_n
-
-            for i, rew in enumerate(rew_n):
-                episode_rewards[-1] += rew
-                agent_rewards[i][-1] += rew
-
-            if done or terminal:
-                obs_n = env.reset()
-                episode_step = 0
-                episode_rewards.append(0)
-                for a in agent_rewards:
-                    a.append(0)
-                agent_info.append([[]])
-
-            # increment global step counter
-            train_step += 1
-
-            # for benchmarking learned policies
-            if arglist.benchmark:
-                for i, info in enumerate(info_n):
-                    agent_info[-1][i].append(info_n['n'])
-                if train_step > arglist.benchmark_iters and (done or terminal):
-                    file_name = arglist.benchmark_dir + arglist.exp_name + '.pkl'
-                    print('Finished benchmarking, now saving...')
-                    with open(file_name, 'wb') as fp:
-                        pickle.dump(agent_info[:-1], fp)
-                    break
-                continue
+def get_num_adversaries(env):
+    return np.sum([a.adversary if hasattr(a, 'adversary') else False for a in env.agents])
 
 
 if __name__ == '__main__':
