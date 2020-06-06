@@ -84,7 +84,7 @@ def train(arglist):
         env = make_env(arglist.scenario)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
-        num_adversaries = np.sum([a.adversary for a in env.agents])
+        num_adversaries = get_num_adversaries(env)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
@@ -213,13 +213,17 @@ def train(arglist):
                 break
 
 
+def get_num_adversaries(env):
+    return np.sum([a.adversary if hasattr(a, 'adversary') else False for a in env.agents])
+
+
 def play(arglist):
     with U.single_threaded_session():
         # Create environment
         env = make_env(arglist.scenario, arglist.benchmark)
         # Create agent trainers
         obs_shape_n = [env.observation_space[i].shape for i in range(env.n)]
-        num_adversaries = np.sum([a.adversary for a in env.agents])
+        num_adversaries = get_num_adversaries(env)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
