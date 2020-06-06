@@ -39,14 +39,16 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     trainers = []
     model = mlp_model
     trainer = MADDPGAgentTrainer
-    for i in range(num_adversaries):
+    for i in range(0, min(num_adversaries, 1)):
         trainers.append(trainer(
-            "adversary_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
+            "adversary", model, obs_shape_n, env.action_space, i, arglist,
             local_q_func=(arglist.adv_policy == 'ddpg')))
-    for i in range(num_adversaries, env.n):
+    for i in range(num_adversaries, min(num_adversaries + 1, env.n)):
         trainers.append(trainer(
-            "agent_%d" % i, model, obs_shape_n, env.action_space, i, arglist,
+            "agent", model, obs_shape_n, env.action_space, i, arglist,
             local_q_func=(arglist.good_policy == 'ddpg')))
+    for i in range(len(trainers)):
+        trainers[i].num_adversaries = num_adversaries
     return trainers
 
 
@@ -140,7 +142,7 @@ def train(arglist):
         print('Starting iterations...')
         while True:
             # get action
-            action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
+            action_n = [get_trainer_by_id(trainers, num_adversaries, i).action(obs) for i, obs in zip(range(len(obs_n)), obs_n)]
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
             episode_step += 1
@@ -148,8 +150,9 @@ def train(arglist):
             done = all(done_n)
             terminal = (episode_step >= arglist.max_episode_len)
             # collect experience
-            for i, agent in enumerate(trainers):
-                agent.experience(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+            for i in range(env.n):
+                get_trainer_by_id(trainers, num_adversaries, i).experience(obs_n[i], action_n[i], rew_n[i],
+                                                                           new_obs_n[i], done_n[i], terminal)
             obs_n = new_obs_n
 
             for i, rew in enumerate(rew_n):
@@ -222,6 +225,10 @@ def train(arglist):
                 break
 
 
+def get_trainer_by_id(trainers, num_adversaries, i):
+    return trainers[0] if (i < num_adversaries) else trainers[len(trainers) - 1]
+
+
 def play(arglist):
     with U.single_threaded_session():
         # Create environment
@@ -248,7 +255,7 @@ def play(arglist):
         print('Starting iterations...')
         while True:
             # get action
-            action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
+            action_n = [get_trainer_by_id(trainers, num_adversaries, i).action(obs) for i, obs in zip(range(len(obs_n)), obs_n)]
             # environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
             episode_step += 1
