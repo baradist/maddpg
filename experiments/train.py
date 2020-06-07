@@ -131,7 +131,7 @@ def train(arglist):
         t_start_overall = time.time()
 
         from experiments.comm_checker import CommChecker
-        comm_checker = CommChecker(env.n)
+        comm_checker = CommChecker(env.n, comm_dim=env.world.dim_c )
 
         print('Starting iterations...')
         while True:
