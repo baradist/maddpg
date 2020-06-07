@@ -2,12 +2,13 @@ import numpy as np
 
 
 class CommChecker(object):
-    def __init__(self, num_agents, comm_check_rate=10):
+    def __init__(self, num_agents, comm_check_rate=10, comm_dim=3):
         self.num_agents = num_agents
         self.communications_matches = np.zeros(num_agents)
         self.communications_matches_count = 0
-        self.communications_matches_matrix = np.zeros([num_agents, 3, 3]) # env.world.dim_c == 3
+        self.communications_matches_matrix = np.zeros([num_agents, comm_dim, comm_dim])  # env.world.dim_c == 3
         self.comm_check_rate = comm_check_rate
+        self.comm_dim = comm_dim
 
     def check(self, observations, agents, episode_step):
         if episode_step % self.comm_check_rate != 0:
@@ -18,7 +19,7 @@ class CommChecker(object):
                 in zip(range(self.num_agents), observations, agents, self.communications_matches_matrix, matches_results):
             if agent.silent:
                 continue
-            obs = obs[:3]
+            obs = obs[:self.comm_dim]
             obs_max_index = obs.argmax()
             comm_action = agent.action.c
             max_comm_action = np.zeros(len(comm_action))
