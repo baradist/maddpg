@@ -29,12 +29,8 @@ def make_env(scenario_name, benchmark=False):
     # create world
     world = scenario.make_world()
     # create multiagent environment
-    if benchmark:
-        env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation, \
-                               info_callback=scenario.benchmark_data, done_callback=scenario.done)
-    else:
-        env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation, \
-                               done_callback=scenario.done)
+    env = scenario.get_env(world, scenario.reset_world, scenario.reward, scenario.observation,
+                           done_callback=scenario.done)
     return env
 
 
@@ -88,7 +84,7 @@ def train(arglist):
 
         from experiments.plotter import Plotter
         vis = visdom.Visdom(port=8097)
-        title = 'MADDPG'
+        title = arglist.scenario + " " + arglist.exp_name
         episode = 'Episode'
         reward_plotter = Plotter(vis,
                                  title=title,
