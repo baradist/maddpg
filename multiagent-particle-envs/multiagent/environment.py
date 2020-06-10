@@ -234,6 +234,11 @@ class MultiAgentEnv(gym.Env):
                 xform = rendering.Transform()
                 if 'agent' in entity.name:
                     geom.set_color(*entity.color, alpha=0.5)
+                elif 'border' in entity.name:
+                    geom = rendering.make_polygon(entity.shape)
+                    # print(entity.shape)
+                    geom.set_color(*entity.color)
+                    # print("border geom")
                 else:
                     geom.set_color(*entity.color)
                 geom.add_attr(xform)
