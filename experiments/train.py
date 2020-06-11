@@ -49,6 +49,12 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     return trainers
 
 
+def save_state(directory, saver):
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    U.save_state(directory, saver=saver)
+    print("Model weights saved to folder " + directory)
+
+
 def load_state(load_dir):
     try:
         U.load_state(load_dir)
@@ -176,8 +182,10 @@ def train(arglist):
                 loss = agent.update(trainers, train_step)
 
             # save model, display training output
+            if terminal and (episodes_count % (arglist.save_rate * 2) == 0):
+                save_state(arglist.load_dir + "ep" + str(episodes_count) + "/", saver)
             if terminal and (episodes_count % arglist.save_rate == 0):
-                U.save_state(arglist.load_dir, saver=saver)  # TODO
+                save_state(arglist.load_dir, saver)
                 mean_episode_reward = np.mean(episode_rewards)
                 episode_rewards = [0.0]
                 # print statement depends on whether or not there are adversaries
