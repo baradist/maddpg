@@ -89,5 +89,5 @@ class Scenario(BaseScenario):
         # return np.concatenate([agent.state.p_vel] + entity_pos + entity_color + [goal_color[1]] + comm)
         # return np.concatenate([agent.state.p_vel] + entity_pos + entity_color + [agent.color] + comm)
         # return np.concatenate([agent.state.p_vel] +[agent.goal_a.state.p_vel] + entity_pos + entity_pos_ + entity_color + goal_color)
-        return np.concatenate([agent.state.p_vel] + entity_pos + entity_color + goal_color)
-        # return np.concatenate([agent.state.p_vel] + entity_pos + entity_color + [goal_color[1]] + comm)
+        # return np.concatenate([agent.state.p_vel] + entity_pos + entity_color + goal_color)
+        return np.concatenate([agent.state.p_vel] + entity_pos + entity_color + [goal_color[1]] + comm)
