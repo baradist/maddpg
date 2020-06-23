@@ -10,6 +10,7 @@ import visdom
 
 import maddpg.common.tf_util as U
 from experiments.parse_args import parse_args
+from experiments.std_plotter import StdPlotter
 from maddpg.trainer.maddpg import MADDPGAgentTrainer
 
 
@@ -88,31 +89,30 @@ def train(arglist):
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
         print('Using good policy {} and adv policy {}'.format(arglist.good_policy, arglist.adv_policy))
 
-        from experiments.plotter import Plotter
         vis = visdom.Visdom(port=8097)
         title = arglist.scenario + " " + arglist.exp_name
         episode = 'Episode'
-        reward_plotter = Plotter(vis,
-                                 title=title,
-                                 ylabel='Reward',
-                                 xlabel=episode,
-                                 legend=['Agent-%d' % i for i in range(env.n)])
-        comm_plotter = Plotter(vis,
-                               title=title,
-                               ylabel='Consistency',
-                               xlabel=episode,
-                               legend=['Agent-%d' % i for i in range(env.n)],
-                               frequency=10)
-        time_plotter = Plotter(vis,
-                               title=title,
-                               ylabel='Time, sec',
-                               xlabel=episode,
-                               legend=['Time'], frequency=10)
-        overall_time_plotter = Plotter(vis,
-                                       title=title,
-                                       ylabel='Time from the beginning',
-                                       xlabel=episode,
-                                       legend=['Time'], frequency=1)
+        reward_plotter = StdPlotter(vis,
+                                    title=title,
+                                    ylabel='Reward',
+                                    xlabel=episode,
+                                    legend=['Agent-%d' % i for i in range(env.n)])
+        comm_plotter = StdPlotter(vis,
+                                  title=title,
+                                  ylabel='Consistency',
+                                  xlabel=episode,
+                                  legend=['Agent-%d' % i for i in range(env.n)],
+                                  frequency=10)
+        time_plotter = StdPlotter(vis,
+                                  title=title,
+                                  ylabel='Time, sec',
+                                  xlabel=episode,
+                                  legend=['Time'], frequency=10)
+        overall_time_plotter = StdPlotter(vis,
+                                          title=title,
+                                          ylabel='Time from the beginning',
+                                          xlabel=episode,
+                                          legend=['Time'], frequency=1)
 
         U.initialize()
 
@@ -132,8 +132,10 @@ def train(arglist):
         t_start_p = time.time()
         t_start_overall = time.time()
 
+        std_history = []
+
         from experiments.comm_checker import CommChecker
-        comm_checker = CommChecker(env.n, comm_dim=env.world.dim_c )
+        comm_checker = CommChecker(env.n, comm_dim=env.world.dim_c)
 
         print('Starting iterations...')
         while True:
@@ -187,6 +189,7 @@ def train(arglist):
             if terminal and (episodes_count % arglist.save_rate == 0):
                 save_state(arglist.load_dir, saver)
                 mean_episode_reward = np.mean(episode_rewards)
+                std_episode_reward = np.std(episode_rewards)
                 episode_rewards = [0.0]
                 # print statement depends on whether or not there are adversaries
                 if num_adversaries == 0:
@@ -204,6 +207,10 @@ def train(arglist):
 
             # saves final episode reward for plotting training curve later
             if episodes_count > arglist.num_episodes:
+                reward_plotter.save_figure_to_svg(arglist.load_dir, "reward.svg")
+                comm_plotter.save_figure_to_svg(arglist.load_dir, "comm.svg")
+                time_plotter.save_figure_to_svg(arglist.load_dir, "time.svg")
+                overall_time_plotter.save_figure_to_svg(arglist.load_dir, "overall_time.svg")
                 Path(arglist.plots_dir).mkdir(parents=True, exist_ok=True)
                 rew_file_name = arglist.plots_dir + arglist.exp_name + '_rewards.pkl'
                 with open(rew_file_name, 'wb') as fp:

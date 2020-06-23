@@ -23,10 +23,10 @@ class Plotter(object):
         self.counter += 1
         self.values_array.append(values)
         if self.counter == self.frequency:
-            self.plot(episode, np.mean(np.array(self.values_array), 0))
+            self.plot(episode, np.mean(np.array(self.values_array), 0), np.std(np.array(self.values_array), 0))
             self.reset()
 
-    def plot(self, episode, values):
+    def plot(self, episode, values, std):
         n_lines = len(values)
         if self.win is None:
             self.win = self.vis.line(X=np.arange(episode, episode + 1),
